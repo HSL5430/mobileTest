@@ -4,6 +4,7 @@ import android.util.Log
 import cn.accenture.mobiletest.App
 import cn.accenture.mobiletest.booking.cache.CacheStrategyInterceptor
 import cn.accenture.mobiletest.booking.cache.NetworkInterceptor
+import cn.accenture.mobiletest.util.NetworkUtils
 import okhttp3.Cache
 import okhttp3.CacheControl
 import okhttp3.Call
@@ -94,6 +95,15 @@ class BookingService {
                         response.body?.close()
                     } catch (e: Exception) {
                         e.printStackTrace()
+                    }
+
+                    // 检查缓存是否过期
+                    if (response.request.cacheControl.onlyIfCached
+                        && System.currentTimeMillis() - response.sentRequestAtMillis > response.cacheControl.maxAgeSeconds * 1000
+                        && NetworkUtils.isConnected(App.getInstance())
+                    ) {
+                        // 已过期 && 有网络，重新请求数据，强制从网络获取
+                        request(0, callback)
                     }
                 }
             }

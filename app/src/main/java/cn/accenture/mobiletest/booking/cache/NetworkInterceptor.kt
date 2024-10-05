@@ -22,7 +22,7 @@ class NetworkInterceptor : Interceptor {
             if (request.cacheControl.maxAgeSeconds > 0 || request.cacheControl.onlyIfCached) {
                 builder.header("Cache-Control", request.cacheControl.toString())
             } else {
-                builder.header("Cache-Control", "max-age=300") // 默认5分钟
+                builder.header("Cache-Control", "max-age=$CACHE_MAX_AGE_SECONDS")
             }
             return builder.build()
         }

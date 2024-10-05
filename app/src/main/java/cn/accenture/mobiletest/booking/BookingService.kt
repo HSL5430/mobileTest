@@ -1,7 +1,9 @@
 package cn.accenture.mobiletest.booking
 
+import android.os.Handler
 import android.util.Log
 import cn.accenture.mobiletest.App
+import cn.accenture.mobiletest.booking.cache.CACHE_MAX_AGE_SECONDS
 import cn.accenture.mobiletest.booking.cache.CacheStrategyInterceptor
 import cn.accenture.mobiletest.booking.cache.NetworkInterceptor
 import cn.accenture.mobiletest.util.NetworkUtils
@@ -17,8 +19,13 @@ import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
+/**
+ * 请求数据, 并根据缓存策略处理
+ * @param mainHandler 用来自动刷新数据
+ * @param callback 回调函数，返回数据，返回true表示数据有效，false表示数据无效
+ */
+class BookingService(val mainHandler: Handler, val callback: (String?) -> Boolean) {
 
-class BookingService {
     private var mOkHttpClient: OkHttpClient? = null
 
     private fun getOkHttpClient() = if (mOkHttpClient == null) {
@@ -41,9 +48,8 @@ class BookingService {
     /**
      * 请求数据, 并根据缓存策略处理
      * @param maxAge 缓存时间，单位秒，默认5分钟；小于等于0时，强制从网络获取数据
-     * @param callback 回调函数，返回数据，返回true表示数据有效，false表示数据无效
      */
-    fun request(maxAge: Int = 60 * 5, callback: ((String?) -> Boolean)) {
+    fun request(maxAge: Int = CACHE_MAX_AGE_SECONDS) {
         // 设置缓存策略
         val cacheControl = if (maxAge <= 0) {
             CacheControl.FORCE_NETWORK
@@ -64,6 +70,7 @@ class BookingService {
             }
 
             override fun onResponse(call: Call, response: Response) {
+                val isRealResponseBody = response.body is RealResponseBody
                 try {
                     if (call.isCanceled()) {
                         onFailure(call, IOException("Canceled!"))
@@ -73,14 +80,14 @@ class BookingService {
                         onFailure(call, IOException("Response's code is : " + response.code))
                         return
                     }
-                    val from = if (response.body is RealResponseBody) "network" else "cache"
+
                     val bodyStr = response.body?.string()
                     val str = StringBuilder()
                         .append("request: ")
                         .append(response.request.toString())
                         .append("\n\n")
                         .append("from: ")
-                        .append(from)
+                        .append(if (isRealResponseBody) "network" else "cache")
                         .append("\n\n")
                         .append("response: ")
                         .append('\n')
@@ -103,13 +110,16 @@ class BookingService {
                         && NetworkUtils.isConnected(App.getInstance())
                     ) {
                         // 已过期 && 有网络，重新请求数据，强制从网络获取
-                        request(0, callback)
+                        request(0)
+                    } else if (isRealResponseBody) {
+                        mainHandler.removeCallbacksAndMessages(null)
+                        // 数据过期后，自动触发刷新机制
+                        mainHandler.postDelayed({ request(0) }, 1000L * CACHE_MAX_AGE_SECONDS )
                     }
                 }
             }
         })
     }
-
 }
 
 

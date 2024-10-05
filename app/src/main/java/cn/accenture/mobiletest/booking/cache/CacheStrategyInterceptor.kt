@@ -4,6 +4,8 @@ import okhttp3.CacheControl
 import okhttp3.Interceptor
 import okhttp3.Response
 
+const val CACHE_MAX_AGE_SECONDS = 60 * 5 // 缓存有效期：5分钟
+
 /**
  * 缓存策略拦截器：
  *
